@@ -453,7 +453,7 @@ async def test_profile_request_time_ranges(
     await setup_integration(hass, config_entry, now=now)
 
     energy_communities: set[tuple[str, str]] = {
-        (number, energy_community_id) for number, energy_community_id, *_ in expected
+        (number, energy_community_id) for number, energy_community_id, *_ in expected if energy_community_id is not None
     }
     assert (
         sorted(key for key in profile_request_keys(fake_api.aioclient_mock) if key[:2] in energy_communities)

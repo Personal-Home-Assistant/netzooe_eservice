@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added optional import of validated consumption profiles into separate hourly statistics at measurement time,
+  with daylight-saving support, bounded backfill and correction-window replay without double counting.
+- Added optional variable energy cost statistics with an effective tariff date and no estimated fixed charges.
+
 <!--start-->
 
 ## [1.2.1] - 2026-10-24

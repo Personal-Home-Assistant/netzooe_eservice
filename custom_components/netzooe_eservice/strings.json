@@ -148,17 +148,26 @@
     }
   },
   "options": {
+    "error": {
+      "price_date_required": "Enter both the price and its effective date."
+    },
     "step": {
       "init": {
         "data": {
           "frequent_updates": "Frequent updates (every 15 minutes)",
+          "import_consumption_profiles": "Import consumption profiles into hourly statistics",
           "include_inactive_contract_account_data": "Include data from inactive contract accounts (same meter point)",
+          "profile_energy_price": "Energy price per kWh",
+          "profile_energy_price_from": "Energy price valid from",
           "show_inactive_meter_points": "Show inactive meter points",
           "show_revoked_energy_communities": "Show revoked energy communities"
         },
         "data_description": {
           "frequent_updates": "When enabled, the energy community status and contribution factor are refreshed every 15 minutes. When disabled, all data is refreshed only every 3 hours.",
+          "import_consumption_profiles": "Import validated quarter-hour readings at their measurement times. Initial backfill covers up to 365 days; subsequent updates recheck seven days. Existing sensor statistics are preserved. Requires Recorder.",
           "include_inactive_contract_account_data": "When enabled, data from contract accounts with inactive suppliers at the same meter point is merged into the active account's data (for inactive meter points into the data of the most recently ended contract). This affects both the individual energy community sensors and the total import/export sensors for the meter point.",
+          "profile_energy_price": "Optional variable energy price in the HA currency, excluding fixed charges. Creates separate cost statistics.",
+          "profile_energy_price_from": "Calculate costs only from this date. Earlier cost statistics are preserved.",
           "show_inactive_meter_points": "When enabled, meter points where all contract accounts are inactive are also shown.",
           "show_revoked_energy_communities": "When enabled, energy communities with revoked participation are shown as separate devices with their own sensors, instead of only active memberships. Their consumption/production data is also added to the total import/export sensors for the meter point."
         }

@@ -48,12 +48,18 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:  
     return
 
 
+@pytest.fixture
+def mock_recorder_before_hass(recorder_db_url: str) -> str:
+    """Prepare Recorder's database URL before the custom-integration HA fixture."""
+    return recorder_db_url
+
+
 def profile_request_key(data: dict[str, Any]) -> ProfileRequestKey:
     """Return the key of a consumption profile request body."""
     pod: dict[str, Any] = data["pods"][0]
     return (
         pod["contractAccountNumber"],
-        pod["energyCommunityId"],
+        pod.get("energyCommunityId"),
         pod["timerange"]["from"],
         pod["timerange"]["to"],
     )
@@ -134,12 +140,17 @@ class FakeNetzOOEeServiceAPI:
 
         Unknown requests are recorded, the `fake_api` fixture fails the test if there are any.
         """
-        key: ProfileRequestKey = profile_request_key(data)
-
-        if key not in self.profile_responses:
-            self.unknown_profile_requests.append(key)
-
-        return AiohttpClientMockResponse(method, url=url, json=self.profile_responses.get(key, []))
+        response: list[dict[str, Any]] = []
+        pods: list[dict[str, Any]] = data["pods"]
+        # Existing energy-community fixtures already contain the combined response.
+        if "energyCommunityId" in pods[0]:
+            pods = pods[:1]
+        for pod in pods:
+            key: ProfileRequestKey = profile_request_key({"pods": [pod]})
+            if key not in self.profile_responses:
+                self.unknown_profile_requests.append(key)
+            response.extend(self.profile_responses.get(key, []))
+        return AiohttpClientMockResponse(method, url=url, json=response)
 
 
 @pytest.fixture(autouse=True)
