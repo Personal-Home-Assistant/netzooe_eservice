@@ -20,9 +20,15 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.selector import BooleanSelector
+from homeassistant.helpers.selector import DateSelector
+from homeassistant.helpers.selector import NumberSelector
+from homeassistant.helpers.selector import NumberSelectorConfig
+from homeassistant.helpers.selector import NumberSelectorMode
 from netzooe_eservice_api.api import NetzOOEeServiceAPI
 from netzooe_eservice_api.error import APIError
 
+from .const import CONF_PROFILE_ENERGY_PRICE
+from .const import CONF_PROFILE_ENERGY_PRICE_FROM
 from .const import CONFIG_ENTRY_VERSION
 from .const import DESCRIPTION_PLACEHOLDERS
 from .const import DOMAIN
@@ -179,17 +185,34 @@ class NetzOOEeServiceOptionsFlow(OptionsFlowWithReload):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle options flow."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            if (user_input.get(CONF_PROFILE_ENERGY_PRICE) is not None) != bool(
+                user_input.get(CONF_PROFILE_ENERGY_PRICE_FROM)
+            ):
+                errors["base"] = "price_date_required"
+            else:
+                return self.async_create_entry(data=user_input)
+
+        schema: dict[Any, Any] = {
+            vol.Optional(option, default=self.config_entry.options.get(option, default)): BooleanSelector()
+            for option, default in OPTIONS.items()
+        }
+        schema[vol.Optional(CONF_PROFILE_ENERGY_PRICE)] = NumberSelector(
+            NumberSelectorConfig(
+                min=0,
+                max=100,
+                step="any",
+                mode=NumberSelectorMode.BOX,
+                unit_of_measurement=f"{self.hass.config.currency}/kWh",
+            )
+        )
+        schema[vol.Optional(CONF_PROFILE_ENERGY_PRICE_FROM)] = DateSelector()
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(option, default=self.config_entry.options.get(option, default)): BooleanSelector()
-                    for option, default in OPTIONS.items()
-                },
-            ),
+            data_schema=self.add_suggested_values_to_schema(vol.Schema(schema), self.config_entry.options),
+            errors=errors,
         )
 
 

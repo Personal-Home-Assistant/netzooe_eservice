@@ -151,6 +151,30 @@ automation:
 
 ## Data updates
 
+### Optional consumption profile statistics
+
+Enable **Import consumption profiles into hourly statistics** in the integration options to import confirmed
+quarter-hour consumption readings at their original measurement times. Recorder must be enabled. The option is
+off by default and preserves all existing sensors and their statistics.
+
+The separate external statistic is named **Netz OÖ consumption profile**, with ID
+`netzooe_eservice:<lowercase_meter_point_number>_consumption_profile`. Select this statistic as grid consumption
+in the Energy configuration to use the measured time distribution instead of the sensor's polling time.
+Replace the existing grid source rather than adding the same consumption twice.
+
+The initial import covers up to 365 available days, requested as individual-day profiles in batches of 30.
+Multi-day ranges can return coarser portal data despite quarter-hour availability. Updates recheck seven days
+to incorporate corrections and replace the affected hours rather than adding them again. Four quarter-hour
+readings form one UTC hour; daylight-saving days retain their actual 23 or 25 hours. Missing, conflicting,
+unconfirmed or misaligned intervals and mismatching profile totals defer the import without filling gaps.
+Data is still delayed by the portal; this is historical consumption, not live power.
+
+Optionally set **Variable energy price** and **Price effective from** together. A second statistic,
+`netzooe_eservice:<lowercase_meter_point_number>_consumption_profile_energy_cost`, records the variable energy
+cost in the Home Assistant currency, using the same measurement hours. Select it as the grid source's cost
+statistic. No cost is estimated before the effective date. Monthly base prices, grid charges and other levies
+are excluded. Only the configured dated price is recalculated; earlier tariff periods are preserved.
+
 The integration polls the portal every 3 hours and refreshes all data. With **Frequent updates** enabled, the
 contribution factors and statuses of the energy communities are additionally refreshed every 15 minutes. The requests
 of an update run in parallel, at most 4 at the same time.

@@ -1703,7 +1703,7 @@ SEVEN_ENERGY_PROFILE_DATA_MONTHLY_L2_006_1: Final[list[dict[str, Any]]] = [
     },
 ]
 
-type ProfileRequestKey = tuple[str, str, str, str]
+type ProfileRequestKey = tuple[str, str | None, str, str]
 
 API_URL: Final[str] = "https://eservice.netzooe.at/service"
 PROFILE_URL: Final[str] = f"{API_URL}/v1.0/consumptions/profile/active"

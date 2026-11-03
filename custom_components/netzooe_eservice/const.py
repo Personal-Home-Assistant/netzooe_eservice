@@ -8,6 +8,7 @@ import re
 from datetime import timedelta
 from enum import Enum
 from typing import Final
+from zoneinfo import ZoneInfo
 
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.const import CONF_USERNAME
@@ -17,10 +18,14 @@ from netzooe_eservice_api.constants import SynthProfile
 
 CONFIG_ENTRY_VERSION: Final[int] = 1
 CONF_FREQUENT_UPDATES: Final[str] = "frequent_updates"
+CONF_IMPORT_CONSUMPTION_PROFILES: Final[str] = "import_consumption_profiles"
+CONF_PROFILE_ENERGY_PRICE: Final[str] = "profile_energy_price"
+CONF_PROFILE_ENERGY_PRICE_FROM: Final[str] = "profile_energy_price_from"
 CONF_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA: Final[str] = "include_inactive_contract_account_data"
 CONF_SHOW_REVOKED_ENERGY_COMMUNITIES: Final[str] = "show_revoked_energy_communities"
 CONF_SHOW_INACTIVE_METER_POINTS: Final[str] = "show_inactive_meter_points"
 DEFAULT_FREQUENT_UPDATES: Final[bool] = False
+DEFAULT_IMPORT_CONSUMPTION_PROFILES: Final[bool] = False
 DEFAULT_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA: Final[bool] = True
 DEFAULT_SHOW_REVOKED_ENERGY_COMMUNITIES: Final[bool] = False
 DEFAULT_SHOW_INACTIVE_METER_POINTS: Final[bool] = False
@@ -34,6 +39,16 @@ SCAN_INTERVAL_FULL: Final[timedelta] = timedelta(hours=3)
 PROFILE_DATA_DELAY: Final[timedelta] = timedelta(days=16)
 # Maximum number of consumption profile requests that are sent to the portal at the same time.
 MAX_PARALLEL_REQUESTS: Final[int] = 4
+PROFILE_BACKFILL_DAYS: Final[int] = 365
+PROFILE_BATCH_DAYS: Final[int] = 30
+PROFILE_RECHECK_DAYS: Final[int] = 7
+PROFILE_TIME_ZONE: Final[ZoneInfo] = ZoneInfo("Europe/Vienna")
+
+
+class ProfileValueStatus(Enum):
+    """Confirmed interval quality accepted by the statistics importer."""
+
+    VALID = "VALID"
 
 
 class DeviceType(Enum):
@@ -52,6 +67,7 @@ PLATFORMS: Final[list[Platform]] = [
 # Options with their defaults, in the order of the options form.
 OPTIONS: Final[dict[str, bool]] = {
     CONF_FREQUENT_UPDATES: DEFAULT_FREQUENT_UPDATES,
+    CONF_IMPORT_CONSUMPTION_PROFILES: DEFAULT_IMPORT_CONSUMPTION_PROFILES,
     CONF_SHOW_REVOKED_ENERGY_COMMUNITIES: DEFAULT_SHOW_REVOKED_ENERGY_COMMUNITIES,
     CONF_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA: DEFAULT_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA,
     CONF_SHOW_INACTIVE_METER_POINTS: DEFAULT_SHOW_INACTIVE_METER_POINTS,

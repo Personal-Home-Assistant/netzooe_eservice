@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from typing import Any
 
 import pytest
 from homeassistant import setup
@@ -343,15 +344,19 @@ async def test_option_flow(
 
     assert list(result_init["data_schema"].schema.keys()) == [
         "frequent_updates",
+        "import_consumption_profiles",
         "show_revoked_energy_communities",
         "include_inactive_contract_account_data",
         "show_inactive_meter_points",
+        "profile_energy_price",
+        "profile_energy_price_from",
     ]
 
     result_create_entry: ConfigFlowResult = await hass.config_entries.options.async_configure(
         result_init["flow_id"],
         user_input={
             "frequent_updates": False,
+            "import_consumption_profiles": False,
             "show_revoked_energy_communities": True,
             "include_inactive_contract_account_data": False,
             "show_inactive_meter_points": True,
@@ -362,6 +367,7 @@ async def test_option_flow(
     assert result_create_entry["type"] is FlowResultType.CREATE_ENTRY
     assert result_create_entry["data"] == {
         "frequent_updates": False,
+        "import_consumption_profiles": False,
         "show_revoked_energy_communities": True,
         "include_inactive_contract_account_data": False,
         "show_inactive_meter_points": True,
@@ -394,6 +400,7 @@ async def test_option_flow_defaults(
     assert result_create_entry["type"] is FlowResultType.CREATE_ENTRY
     assert result_create_entry["data"] == {
         "frequent_updates": False,
+        "import_consumption_profiles": False,
         "show_revoked_energy_communities": False,
         "include_inactive_contract_account_data": True,
         "show_inactive_meter_points": False,
@@ -430,3 +437,23 @@ async def test_option_flow_when_integration_not_loaded(
     assert result_create_entry["type"] is FlowResultType.CREATE_ENTRY
     assert result_create_entry["data"]["show_inactive_meter_points"] is True
     assert config_entry.state is ConfigEntryState.LOADED
+
+
+@pytest.mark.parametrize(
+    "input_data",
+    [{"profile_energy_price": 0.25}, {"profile_energy_price_from": "2026-06-26"}],
+    ids=["price-without-date", "date-without-price"],
+)
+async def test_option_flow_requires_dated_price(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    input_data: dict[str, Any],
+) -> None:
+    """A tariff needs both its value and effective date before it can be saved."""
+    config_entry.add_to_hass(hass)
+    initial: ConfigFlowResult = await hass.config_entries.options.async_init(config_entry.entry_id)
+    result: ConfigFlowResult = await hass.config_entries.options.async_configure(
+        initial["flow_id"], user_input=input_data
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "price_date_required"}

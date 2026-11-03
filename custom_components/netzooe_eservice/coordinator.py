@@ -30,10 +30,14 @@ from netzooe_eservice_api.error import APIError
 from netzooe_eservice_api.error import AuthenticationError
 
 from .const import CONF_FREQUENT_UPDATES
+from .const import CONF_IMPORT_CONSUMPTION_PROFILES
 from .const import CONF_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA
+from .const import CONF_PROFILE_ENERGY_PRICE
+from .const import CONF_PROFILE_ENERGY_PRICE_FROM
 from .const import CONF_SHOW_INACTIVE_METER_POINTS
 from .const import CONF_SHOW_REVOKED_ENERGY_COMMUNITIES
 from .const import DEFAULT_FREQUENT_UPDATES
+from .const import DEFAULT_IMPORT_CONSUMPTION_PROFILES
 from .const import DEFAULT_INCLUDE_INACTIVE_CONTRACT_ACCOUNT_DATA
 from .const import DEFAULT_SHOW_INACTIVE_METER_POINTS
 from .const import DEFAULT_SHOW_REVOKED_ENERGY_COMMUNITIES
@@ -49,6 +53,7 @@ from .const import PROFILE_DATA_DELAY
 from .const import SCAN_INTERVAL
 from .const import SCAN_INTERVAL_FULL
 from .const import TO_REDACT
+from .profile_statistics import ProfileStatisticsImporter
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable
@@ -142,6 +147,9 @@ class NetzOOEeServiceDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]
 
         self._last_full_update: datetime | None = None
         self._logged_warnings: set[str] = set()
+        self.import_consumption_profiles: bool = entry.options.get(
+            CONF_IMPORT_CONSUMPTION_PROFILES, DEFAULT_IMPORT_CONSUMPTION_PROFILES
+        )
 
         self.frequent_updates: bool = entry.options.get(CONF_FREQUENT_UPDATES, DEFAULT_FREQUENT_UPDATES)
         self.show_revoked_energy_communities: bool = entry.options.get(
@@ -203,6 +211,21 @@ class NetzOOEeServiceDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]
 
         if self._warning_resolved("api_error"):
             _LOGGER.info("The eService portal is available again")
+
+        if full_update and self.import_consumption_profiles and "recorder" in self.hass.config.components:
+            try:
+                price_from: str | None = self.config_entry.options.get(CONF_PROFILE_ENERGY_PRICE_FROM)
+                await ProfileStatisticsImporter(
+                    self.hass,
+                    self.api,
+                    energy_price=self.config_entry.options.get(CONF_PROFILE_ENERGY_PRICE),
+                    energy_price_from=date.fromisoformat(price_from) if price_from else None,
+                ).async_update()
+            except (APIError, KeyError, TypeError, ValueError) as error:
+                self._warn_once("profile_import", "Consumption profile import deferred (%s)", type(error).__name__)
+            else:
+                if self._warning_resolved("profile_import"):
+                    _LOGGER.info("Consumption profile import recovered")
 
         _LOGGER.debug("Data: %s", async_redact_data(data, TO_REDACT))
         return data

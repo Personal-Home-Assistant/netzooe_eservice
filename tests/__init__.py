@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 """Time of the updates, the consumption profiles in `tests.api_data.PROFILE_RESPONSES` are requested for it."""
 
 
-def options(**overrides: bool) -> dict[str, Any]:
+def options(**overrides: bool | float | str) -> dict[str, Any]:
     """Return the indirect `config_entry` parameter with the given options, the others keep their defaults."""
     return {"options": overrides}
 

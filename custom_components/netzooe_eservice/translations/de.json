@@ -148,17 +148,26 @@
     }
   },
   "options": {
+    "error": {
+      "price_date_required": "Preis und Gültigkeitsdatum gemeinsam angeben."
+    },
     "step": {
       "init": {
         "data": {
           "frequent_updates": "Häufige Updates (alle 15 Minuten)",
+          "import_consumption_profiles": "Verbrauchsprofile als Stundenstatistiken importieren",
           "include_inactive_contract_account_data": "Daten von inaktiven Vertragskonten einbeziehen (gleicher Zählpunkt)",
+          "profile_energy_price": "Energiepreis je kWh",
+          "profile_energy_price_from": "Energiepreis gültig ab",
           "show_inactive_meter_points": "Inaktive Zählpunkte anzeigen",
           "show_revoked_energy_communities": "Widerrufene Energiegemeinschaften anzeigen"
         },
         "data_description": {
           "frequent_updates": "Wenn aktiviert, werden Status und Teilnahmefaktor der Energiegemeinschaften alle 15 Minuten aktualisiert. Wenn deaktiviert, werden alle Daten nur alle 3 Stunden aktualisiert.",
+          "import_consumption_profiles": "Bestätigte Viertelstundenwerte mit ihren Messzeiten importieren. Erstimport bis zu 365 Tage; Folgeabrufe prüfen sieben Tage erneut. Bestehende Sensorstatistiken bleiben erhalten. Recorder erforderlich.",
           "include_inactive_contract_account_data": "Wenn aktiviert, werden Daten von Vertragskonten mit inaktiven Stromanbietern am gleichen Zählpunkt mit den Daten des aktiven Kontos zusammengeführt (bei inaktiven Zählpunkten mit den Daten des zuletzt beendeten Vertrags). Dies betrifft sowohl die einzelnen Energiegemeinschafts-Sensoren als auch die Gesamt-Bezugs-/Einspeisungssensoren des Zählpunkts.",
+          "profile_energy_price": "Optionaler variabler Energieanteil in der HA-Währung; ohne Grundgebühr. Legt eine eigene Kostenstatistik an.",
+          "profile_energy_price_from": "Kosten werden erst ab diesem Datum berechnet. Frühere Kostenstatistiken bleiben erhalten.",
           "show_inactive_meter_points": "Wenn aktiviert, werden auch Zählpunkte angezeigt, deren Vertragskonten alle inaktiv sind.",
           "show_revoked_energy_communities": "Wenn aktiviert, werden Energiegemeinschaften mit widerrufener Teilnahme als eigene Geräte mit eigenen Sensoren angezeigt, anstatt nur aktive Mitgliedschaften. Ihre Verbrauchs-/Erzeugungsdaten werden außerdem in die Gesamt-Bezugs-/Einspeisungssensoren des Zählpunkts mit eingerechnet."
         }
