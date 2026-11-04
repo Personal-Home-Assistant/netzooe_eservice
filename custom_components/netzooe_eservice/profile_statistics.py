@@ -148,6 +148,7 @@ class ProfileStatisticsImporter:
             "has_sum": True,
         }
         costs: list[StatisticData] = await self._async_cost_statistics(cost_id, values, first, start)
+        # Recorder processes queued writes after HA starts; waiting here would block integration setup.
         async_add_external_statistics(self.hass, metadata, stats)
         if costs:
             cost_metadata: StatisticMetaData = metadata | {
@@ -157,7 +158,6 @@ class ProfileStatisticsImporter:
                 "unit_of_measurement": self.hass.config.currency,
             }
             async_add_external_statistics(self.hass, cost_metadata, costs)
-        await recorder.async_block_till_done()
 
     async def _async_cost_statistics(
         self, cost_id: str, values: IntervalValues, first: date, start: date, /

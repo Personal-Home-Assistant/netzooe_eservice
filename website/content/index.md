@@ -156,6 +156,8 @@ automation:
 Enable **Import consumption profiles into hourly statistics** in the integration options to import confirmed
 quarter-hour consumption readings at their original measurement times. Recorder must be enabled. The option is
 off by default and preserves all existing sensors and their statistics.
+Statistics writes are queued for Recorder without waiting for them to finish during integration setup, so the
+import does not block Home Assistant startup.
 
 The separate external statistic is named **Netz OÖ consumption profile**, with ID
 `netzooe_eservice:<lowercase_meter_point_number>_consumption_profile`. Select this statistic as grid consumption
