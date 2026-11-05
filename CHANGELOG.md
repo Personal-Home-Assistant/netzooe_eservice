@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with daylight-saving support, bounded backfill and correction-window replay without double counting.
 - Added optional variable energy cost statistics with an effective tariff date and no estimated fixed charges.
 
+### Fixed
+
+- Fixed consumption profile imports blocking integration setup during Home Assistant startup while waiting for
+  Recorder to commit queued statistics.
+
 <!--start-->
 
 ## [1.2.1] - 2026-10-24

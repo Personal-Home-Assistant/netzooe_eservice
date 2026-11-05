@@ -9,6 +9,7 @@ from datetime import datetime
 from datetime import timedelta
 from typing import TYPE_CHECKING
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from homeassistant.components.recorder import get_instance
@@ -16,6 +17,7 @@ from homeassistant.components.recorder.models import StatisticMeanType
 from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.components.recorder.statistics import get_last_statistics
 from homeassistant.config_entries import ConfigEntryState
+from pytest_homeassistant_custom_component.components.recorder.common import async_recorder_block_till_done
 
 from tests import options
 from tests import refresh
@@ -48,6 +50,7 @@ async def _statistics(
     hass: HomeAssistant, recorder: Recorder, statistic_id: str = STATISTIC_ID
 ) -> dict[str, list[StatisticsRow]]:
     """Read persisted results through Recorder's public statistics API."""
+    await async_recorder_block_till_done(hass)
     convert_units: bool = True
     return await recorder.async_add_executor_job(get_last_statistics, hass, 1000, statistic_id, convert_units, {"sum"})
 
@@ -105,6 +108,36 @@ async def test_profile_replay_is_idempotent(
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert len(result[STATISTIC_ID]) == HOURS
     assert result[STATISTIC_ID][0]["sum"] == HOURS
+
+
+@pytest.mark.parametrize(
+    "config_entry",
+    [options(import_consumption_profiles=True, profile_energy_price=0.25, profile_energy_price_from=DAY.isoformat())],
+    indirect=True,
+)
+async def test_profile_setup_does_not_wait_for_recorder_startup(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    fake_api: FakeNetzOOEeServiceAPI,
+    recorder_mock: Recorder,
+) -> None:
+    """Load before Recorder can commit, then persist both energy and cost statistics."""
+    await hass.config.async_update(time_zone="Europe/Vienna", currency="EUR")
+    _register(fake_api, DAY, profile_data(DAY))
+    with patch.object(
+        recorder_mock,
+        "async_block_till_done",
+        side_effect=RuntimeError("Recorder cannot commit before Home Assistant starts"),
+    ):
+        await setup_integration(hass, config_entry)
+
+    assert config_entry.state is ConfigEntryState.LOADED
+    energy: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
+    costs: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock, STATISTIC_ID + "_energy_cost")
+    assert len(energy[STATISTIC_ID]) == HOURS
+    assert energy[STATISTIC_ID][0]["sum"] == HOURS
+    assert len(costs[STATISTIC_ID + "_energy_cost"]) == HOURS
+    assert costs[STATISTIC_ID + "_energy_cost"][0]["sum"] == INITIAL_COST
 
 
 @pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
