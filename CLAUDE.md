@@ -58,7 +58,10 @@ Before finishing a change, run `ruff format`, `lint.sh` and `pytest`, in this or
 
 - No inline lint/type suppressions, no new ones in the config, no `# pragma: no cover`, fix or test the code
   - only exception: `# noqa: ARG00x` in required signatures
-- No real credentials or customer data, use the fake data in `tests/api_data.py`
+- No real credentials or customer data, use the fake data in `tests/fixtures/`
+- Test account: login in `.env` (`NETZOOE_USER`, `NETZOOE_PASS`, git-ignored)
+  - **only** read-only requests (besides login/logout), few requests, certificate check on
+  - never print, log or commit its values, never copy them into code, tests or docs
 - Missing portal endpoints or values belong in `netzooe_eservice_api`, stop and ask how to proceed
   - values calculated from existing ones are fine in the integration
 - No new dependencies (`pyproject.toml`, `manifest.json`, also dev dependencies) without asking first
@@ -69,7 +72,9 @@ Before finishing a change, run `ruff format`, `lint.sh` and `pytest`, in this or
 
 ## Architecture
 
-- Follow the Home Assistant integration conventions, code in `custom_components/netzooe_eservice/`
+- **Always** do it like current Home Assistant core integrations on the platinum quality scale (code, tests,
+  fixtures, file layout), code in `custom_components/netzooe_eservice/`
+  - the rules of the `CLAUDE.md` files and the intended deviations take precedence
 - Helpers are `_`-prefixed methods of the class that uses them (`@staticmethod` if they need no `self`)
   - module-level functions only when shared across classes or modules, for Home Assistant callbacks (action
     handlers, validators), as helpers of module-level Home Assistant functions (`async_setup_entry`) or to build
@@ -115,6 +120,8 @@ Before finishing a change, run `ruff format`, `lint.sh` and `pytest`, in this or
   `CLAUDE.md` or skills), use the `changelog` skill
 - Version: only change it when asked, use the `release` skill
 - `netzooe_eservice_api` requirement is in `pyproject.toml` and `manifest.json`, run `uv lock` after changing it
+- Minimum Home Assistant version is the same in `hacs.json`, `homeassistant` and `pytest-homeassistant`
+  (`pyproject.toml`) and `website/content/index.md`, run `uv lock` after changing it
 - Work on `develop`
 - Only commit or push when asked
 - Commit message of a change for an issue starts with its number (`#67 Fix sensors that are not in use`)

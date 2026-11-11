@@ -9,6 +9,7 @@ from datetime import datetime
 from datetime import timedelta
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Final
 from unittest.mock import patch
 
 import pytest
@@ -17,13 +18,12 @@ from homeassistant.components.recorder.models import StatisticMeanType
 from homeassistant.components.recorder.statistics import async_add_external_statistics
 from homeassistant.components.recorder.statistics import get_last_statistics
 from homeassistant.config_entries import ConfigEntryState
-from pytest_homeassistant_custom_component.components.recorder.common import async_recorder_block_till_done
+from pytest_homeassistant.components.recorder.common import async_recorder_block_till_done
 
-from tests import options
-from tests import refresh
+from tests import next_update
 from tests import setup_integration
-from tests.api_data import API_URL
-from tests.api_data import NOW
+from tests.const import API_URL
+from tests.const import NOW
 from tests.test_profile_statistics_data import ACCOUNT
 from tests.test_profile_statistics_data import CORRECTED_COST
 from tests.test_profile_statistics_data import DAY
@@ -33,15 +33,16 @@ from tests.test_profile_statistics_data import STATISTIC_ID
 from tests.test_profile_statistics_data import profile_catalog
 from tests.test_profile_statistics_data import profile_data
 
-pytestmark = pytest.mark.usefixtures("recorder_mock")
+pytestmark: Final = [pytest.mark.usefixtures("recorder_mock"), pytest.mark.freeze_time(NOW)]
 
 if TYPE_CHECKING:
+    from freezegun.api import FrozenDateTimeFactory
     from homeassistant.components.recorder import Recorder
     from homeassistant.components.recorder.models import StatisticData
     from homeassistant.components.recorder.models import StatisticMetaData
     from homeassistant.components.recorder.statistics import StatisticsRow
     from homeassistant.core import HomeAssistant
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     from tests.conftest import FakeNetzOOEeServiceAPI
 
@@ -65,10 +66,10 @@ def _register(
         f"{API_URL}/v1.0/consumptions/profiles?branch=STROM&activeOnly=true",
         json=profile_catalog(day, last_day=last_day),
     )
-    fake_api.profile_responses[(ACCOUNT, None, day.isoformat(), day.isoformat())] = response
+    fake_api.profile_responses[(ACCOUNT, "", day.isoformat(), day.isoformat())] = response
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 @pytest.mark.parametrize(
     "case",
     [(DAY, 24), (date(2026, 3, 29), 23), (date(2025, 10, 26), 25)],
@@ -76,7 +77,7 @@ def _register(
 )
 async def test_profile_import_measurement_hours(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
     case: tuple[date, int],
@@ -85,39 +86,39 @@ async def test_profile_import_measurement_hours(
     day, hours = case
     await hass.config.async_update(time_zone="Europe/Vienna")
     _register(fake_api, day, profile_data(day))
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     await recorder_mock.async_block_till_done()
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
     assert len(result[STATISTIC_ID]) == hours
     assert result[STATISTIC_ID][0]["sum"] == hours
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 async def test_profile_replay_is_idempotent(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
     """Repeated polling replaces the same hours and never doubles consumption."""
     await hass.config.async_update(time_zone="Europe/Vienna")
     _register(fake_api, DAY, profile_data(DAY))
-    await setup_integration(hass, config_entry)
-    await refresh(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
+    await next_update(hass, freezer)
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert len(result[STATISTIC_ID]) == HOURS
     assert result[STATISTIC_ID][0]["sum"] == HOURS
 
 
 @pytest.mark.parametrize(
-    "config_entry",
-    [options(import_consumption_profiles=True, profile_energy_price=0.25, profile_energy_price_from=DAY.isoformat())],
-    indirect=True,
+    "entry_options",
+    [{"import_consumption_profiles": True, "profile_energy_price": 0.25, "profile_energy_price_from": DAY.isoformat()}],
 )
 async def test_profile_setup_does_not_wait_for_recorder_startup(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
@@ -129,9 +130,9 @@ async def test_profile_setup_does_not_wait_for_recorder_startup(
         "async_block_till_done",
         side_effect=RuntimeError("Recorder cannot commit before Home Assistant starts"),
     ):
-        await setup_integration(hass, config_entry)
+        await setup_integration(hass, mock_config_entry)
 
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
     energy: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     costs: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock, STATISTIC_ID + "_energy_cost")
     assert len(energy[STATISTIC_ID]) == HOURS
@@ -140,7 +141,7 @@ async def test_profile_setup_does_not_wait_for_recorder_startup(
     assert costs[STATISTIC_ID + "_energy_cost"][0]["sum"] == INITIAL_COST
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 @pytest.mark.parametrize(
     "case",
     [
@@ -155,7 +156,7 @@ async def test_profile_setup_does_not_wait_for_recorder_startup(
 )
 async def test_invalid_profile_preserves_native_entities(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
     case: tuple[str, bool | float | int | str],
@@ -166,20 +167,20 @@ async def test_invalid_profile_preserves_native_entities(
     response: list[dict[str, Any]] = profile_data(DAY)
     response[0]["profileValues"][0][field] = value
     _register(fake_api, DAY, response)
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert result == {}
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
 
 @pytest.mark.parametrize(
-    "config_entry",
-    [options(import_consumption_profiles=True, profile_energy_price=0.25, profile_energy_price_from=DAY.isoformat())],
-    indirect=True,
+    "entry_options",
+    [{"import_consumption_profiles": True, "profile_energy_price": 0.25, "profile_energy_price_from": DAY.isoformat()}],
 )
 async def test_dated_costs_and_corrections(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
@@ -187,43 +188,43 @@ async def test_dated_costs_and_corrections(
     await hass.config.async_update(time_zone="Europe/Vienna", currency="EUR")
     response: list[dict[str, Any]] = profile_data(DAY)
     _register(fake_api, DAY, response)
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     cost_id: str = STATISTIC_ID + "_energy_cost"
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock, cost_id)
     assert len(result[cost_id]) == HOURS
     assert result[cost_id][0]["sum"] == INITIAL_COST
     response[0]["profileValues"][0]["value"] = 0.5
     response[0]["sum"]["value"] = 24.25
-    await refresh(hass, config_entry, now=NOW + timedelta(hours=4))
+    await next_update(hass, freezer, interval=timedelta(hours=4))
     corrected: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock, cost_id)
     assert len(corrected[cost_id]) == HOURS
     assert corrected[cost_id][0]["sum"] == CORRECTED_COST
 
 
 @pytest.mark.parametrize(
-    "config_entry",
-    [options(import_consumption_profiles=True, profile_energy_price=0.25, profile_energy_price_from="2026-06-27")],
-    indirect=True,
+    "entry_options",
+    [{"import_consumption_profiles": True, "profile_energy_price": 0.25, "profile_energy_price_from": "2026-06-27"}],
 )
 async def test_costs_do_not_predate_the_tariff(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
     """A known future price never manufactures historical costs."""
     _register(fake_api, DAY, profile_data(DAY))
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     cost_id: str = STATISTIC_ID + "_energy_cost"
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock, cost_id)
     assert result == {}
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 async def test_multi_day_backfill_and_anchored_correction(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
@@ -232,8 +233,8 @@ async def test_multi_day_backfill_and_anchored_correction(
     _register(fake_api, first, profile_data(first), last_day=DAY)
     for offset in range(32):
         day: date = first + timedelta(days=offset)
-        fake_api.profile_responses[(ACCOUNT, None, day.isoformat(), day.isoformat())] = profile_data(day)
-    await setup_integration(hass, config_entry)
+        fake_api.profile_responses[(ACCOUNT, "", day.isoformat(), day.isoformat())] = profile_data(day)
+    await setup_integration(hass, mock_config_entry)
     initial: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     expected_hours: int = 32 * HOURS
     assert len(initial[STATISTIC_ID]) == expected_hours
@@ -241,15 +242,15 @@ async def test_multi_day_backfill_and_anchored_correction(
     corrected: list[dict[str, Any]] = profile_data(DAY)
     corrected[0]["profileValues"][0]["value"] = 0.5
     corrected[0]["sum"]["value"] += 0.25
-    fake_api.profile_responses[(ACCOUNT, None, DAY.isoformat(), DAY.isoformat())] = corrected
-    await refresh(hass, config_entry)
+    fake_api.profile_responses[(ACCOUNT, "", DAY.isoformat(), DAY.isoformat())] = corrected
+    await next_update(hass, freezer)
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert len(result[STATISTIC_ID]) == expected_hours
     assert result[STATISTIC_ID][0]["sum"] == expected_hours + 0.25
     assert result[STATISTIC_ID][-1] == initial[STATISTIC_ID][-1]
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 @pytest.mark.parametrize(
     "issue",
     ["count", "unit", "sum-unit", "granularity", "gap", "duplicate", "total"],
@@ -265,12 +266,13 @@ async def test_multi_day_backfill_and_anchored_correction(
 )
 async def test_profile_validation_and_recovery(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     issue: str,
-    caplog: pytest.LogCaptureFixture,
+    profile_test_context: tuple[FrozenDateTimeFactory, pytest.LogCaptureFixture],
 ) -> None:
     """Defer inconsistent profiles, warn once, and recover without duplicate sums."""
+    freezer, caplog = profile_test_context
     recorder_mock: Recorder = get_instance(hass)
     caplog.set_level("INFO", logger="custom_components.netzooe_eservice.coordinator")
     response: list[dict[str, Any]] = profile_data(DAY)
@@ -287,21 +289,21 @@ async def test_profile_validation_and_recovery(
         "total": [response[0] | {"sum": {"value": HOURS + 1, "unit": "KWH"}}],
     }
     _register(fake_api, DAY, mutations[issue])
-    await setup_integration(hass, config_entry)
-    await refresh(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
+    await next_update(hass, freezer)
     assert await _statistics(hass, recorder_mock) == {}
     assert caplog.text.count("Consumption profile import deferred") == 1
-    fake_api.profile_responses[(ACCOUNT, None, DAY.isoformat(), DAY.isoformat())] = profile_data(DAY)
-    await refresh(hass, config_entry)
+    fake_api.profile_responses[(ACCOUNT, "", DAY.isoformat(), DAY.isoformat())] = profile_data(DAY)
+    await next_update(hass, freezer)
     assert "Consumption profile import recovered" in caplog.text
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert result[STATISTIC_ID][0]["sum"] == HOURS
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 async def test_identical_duplicate_does_not_double_energy(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
@@ -309,23 +311,23 @@ async def test_identical_duplicate_does_not_double_energy(
     response: list[dict[str, Any]] = profile_data(DAY)
     response[0]["profileValues"].append(dict(response[0]["profileValues"][0]))
     _register(fake_api, DAY, response)
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     assert result[STATISTIC_ID][0]["sum"] == HOURS
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 async def test_today_is_not_imported(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
     """Only completed provider days can enter statistics, regardless of HA timezone."""
     _register(fake_api, NOW.date(), profile_data(NOW.date()))
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     assert await _statistics(hass, recorder_mock) == {}
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
 
 async def _seed_statistics(hass: HomeAssistant, statistic_id: str, rows: list[StatisticData]) -> None:
@@ -344,9 +346,8 @@ async def _seed_statistics(hass: HomeAssistant, statistic_id: str, rows: list[St
 
 
 @pytest.mark.parametrize(
-    "config_entry",
-    [options(import_consumption_profiles=True, profile_energy_price=0.25, profile_energy_price_from="2026-06-01")],
-    indirect=True,
+    "entry_options",
+    [{"import_consumption_profiles": True, "profile_energy_price": 0.25, "profile_energy_price_from": "2026-06-01"}],
 )
 @pytest.mark.parametrize(
     "scenario",
@@ -355,7 +356,7 @@ async def _seed_statistics(hass: HomeAssistant, statistic_id: str, rows: list[St
 )
 async def test_existing_statistics_anchors(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
     scenario: str,
@@ -365,7 +366,7 @@ async def test_existing_statistics_anchors(
     _register(fake_api, first, profile_data(first), last_day=DAY)
     for offset in range(11):
         day: date = first + timedelta(days=offset)
-        fake_api.profile_responses[(ACCOUNT, None, day.isoformat(), day.isoformat())] = profile_data(day)
+        fake_api.profile_responses[(ACCOUNT, "", day.isoformat(), day.isoformat())] = profile_data(day)
     latest: datetime = datetime.fromisoformat(profile_data(DAY)[0]["profileValues"][-1]["datetime"]).replace(minute=0)
     anchor: datetime = datetime.fromisoformat(
         profile_data(DAY - timedelta(days=6))[0]["profileValues"][0]["datetime"]
@@ -377,19 +378,19 @@ async def test_existing_statistics_anchors(
     }
     await _seed_statistics(hass, STATISTIC_ID, rows[scenario])
     await _seed_statistics(hass, STATISTIC_ID + "_energy_cost", [{"start": latest, "sum": 66}])
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     result: dict[str, list[StatisticsRow]] = await _statistics(hass, recorder_mock)
     expected_rows: dict[str, int] = {"missing-energy": 11 * HOURS, "invalid-energy": 2, "missing-cost": 2}
     assert len(result[STATISTIC_ID]) == expected_rows[scenario]
     expected_sum: int = 11 * HOURS
     assert result[STATISTIC_ID][0]["sum"] == expected_sum
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
 
 
-@pytest.mark.parametrize("config_entry", [options(import_consumption_profiles=True)], indirect=True)
+@pytest.mark.parametrize("entry_options", [{"import_consumption_profiles": True}])
 async def test_non_quarter_hour_profiles_are_skipped(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
@@ -399,23 +400,22 @@ async def test_non_quarter_hour_profiles_are_skipped(
     fake_api.register_auth_request()
     fake_api.register_requests()
     fake_api.aioclient_mock.get(f"{API_URL}/v1.0/consumptions/profiles?branch=STROM&activeOnly=true", json=catalog)
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     assert await _statistics(hass, recorder_mock) == {}
 
 
 @pytest.mark.parametrize(
-    "config_entry",
-    [options(import_consumption_profiles=True, profile_energy_price=-1, profile_energy_price_from=DAY.isoformat())],
-    indirect=True,
+    "entry_options",
+    [{"import_consumption_profiles": True, "profile_energy_price": -1, "profile_energy_price_from": DAY.isoformat()}],
 )
 async def test_invalid_price_preserves_integration(
     hass: HomeAssistant,
-    config_entry: MockConfigEntry,
+    mock_config_entry: MockConfigEntry,
     fake_api: FakeNetzOOEeServiceAPI,
     recorder_mock: Recorder,
 ) -> None:
     """Invalid stored options must never produce negative cost statistics."""
     _register(fake_api, DAY, profile_data(DAY))
-    await setup_integration(hass, config_entry)
+    await setup_integration(hass, mock_config_entry)
     assert await _statistics(hass, recorder_mock) == {}
-    assert config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.state is ConfigEntryState.LOADED
